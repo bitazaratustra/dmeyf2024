@@ -1,5 +1,5 @@
 #!/usr/bin/env Rscript
-cat( "ETAPA  z2601_KA_evaluate_kaggle.r  INIT\n")
+cat( "ETAPA  z2602_KA_evaluate_kaggle_semillerio.r  INIT\n")
 
 # Workflow  KA_evaluate_kaggle
 
@@ -11,10 +11,10 @@ cat( "ETAPA  z2601_KA_evaluate_kaggle.r  INIT\n")
 
 # limpio la memoria
 rm(list = ls(all.names = TRUE)) # remove all objects
-gc(full = TRUE, verbose= FALSE) # garbage collection
+gc(full = TRUE, verbose=FALSE) # garbage collection
 
-require("data.table", quietly=TRUE)
-require("yaml", quietly=TRUE)
+require("data.table")
+require("yaml")
 
 #cargo la libreria
 # args <- c( "~/labo2024ba", "SC-0002" )
@@ -79,7 +79,7 @@ graficar_ganancias <- function( tb_ganancias_local, irank, ibayesiana, qsemillas
 #------------------------------------------------------------------------------
 #------------------------------------------------------------------------------
 # Aqui empieza el programa
-cat( "ETAPA  z2601_KA_evaluate_kaggle.r  START\n")
+cat( "ETAPA  z2602_KA_evaluate_kaggle_semillerio.r  START\n")
 action_inicializar() 
 
 GrabarOutput()
@@ -93,6 +93,9 @@ cat( "lectura tb_predicciones.txt\n")
 arch_tb_predicciones <- paste0( "./", envg$PARAM$input[1], "/tb_predicciones.txt")
 action_verificar_archivo( arch_tb_predicciones )
 tb_predicciones <- fread(arch_tb_predicciones)
+
+# filtro solo los semillerios
+tb_predicciones <- tb_predicciones[ semillerio==1 ]
 
 
 envg$PARAM$dataset_metadata <- read_yaml( paste0( "./", envg$PARAM$input[1], "/dataset_metadata.yml" ) )
@@ -129,25 +132,25 @@ for ( irank in ranks ) {
   tb_ganancias_local[, rank := irank ]
   tb_ganancias_local[ , gan_sum := 0 ]
 
-  isems <- tb_predicciones[ rank==irank, unique( isem )]
-  isem <- intersect( isems, envg$PARAM$isems_submit )
+  irepes <- tb_predicciones[ rank==irank, unique( repeticion )]
+  irepes <- intersect( irepes, envg$PARAM$irepes_submit )
 
-  for (vsem in isems)
+  for (vrepe in irepes)
   {
-    cat( irank, vsem, "\n")
+    cat( irank, vrepe, "\n")
     envg$OUTPUT$status$rank <- irank
-    envg$OUTPUT$status$isem <- vsem
+    envg$OUTPUT$status$irepe <- vrepe
     GrabarOutput()
 
     nombre_raiz <- paste0(
       sprintf("%02d", irank),
       "_",
-      sprintf("%03d", tb_predicciones[ rank==irank & isem==vsem, iteracion_bayesiana]),
-      "_s",
-      tb_predicciones[ rank==irank & isem==vsem, semilla]
+      sprintf("%03d", tb_predicciones[ rank==irank & repeticion==vrepe, iteracion_bayesiana]),
+      "_r",
+      vrepe
       )
   
-    campito <- tb_predicciones[ rank==irank & isem==vsem, campo]
+    campito <- tb_predicciones[ rank==irank & repeticion==vrepe, campo]
     temp_pred <- tb_future_prediccion[ , c( envg$PARAM$dataset_metadata$entity_id, campito ), with=FALSE ]
     setorderv( temp_pred, campito, -1 )
 
@@ -193,25 +196,21 @@ for ( irank in ranks ) {
         Sys.chmod( "subir.sh", mode = "744", use_umask = TRUE)
 
         res <- system( "./subir.sh", intern= TRUE )
-        dir.create("~/.virtual_documents", showWarnings=FALSE)
-        cat( format(Sys.time(), "%Y%m%d %H%M%S"), "\n",
-             file = "~/.virtual_documents/z-activity.txt")
-
         Sys.sleep( 30 )  # espero para no saturar
         res <- "Successfully"  # pequena ayuda ...
 
         if( substr(res, 1, 12) == "Successfully" ) {
           res <- system( paste0("~/install/list2 ", nom_submit), intern= TRUE )
           cat( "res= ", res, "\n" )
-          tb_ganancias_local[ envios == icorte, paste0("m", vsem) := as.numeric(res) ]
+          tb_ganancias_local[ envios == icorte, paste0("m", vrepe) := as.numeric(res) ]
           tb_ganancias_local[ envios == icorte, gan_sum := gan_sum + as.numeric(res) ]
 
           # MLFlow
           linea <- list()
           linea$rank <- irank
-          linea$iteracion_bayesiana <- tb_predicciones[ rank==irank & isem==vsem, iteracion_bayesiana]
+          linea$iteracion_bayesiana <- tb_predicciones[ rank==irank & repeticion==vrepe, iteracion_bayesiana]
           linea$qsemillas <- 1
-          linea$semilla <- tb_predicciones[ rank==irank & isem==vsem, semilla]
+          linea$semilla <- tb_predicciones[ rank==irank & repeticion==vrepe, semilla]
           linea$corte <- icorte
           linea$ganancia <- as.numeric(res)
           linea$metrica <- as.numeric(res)
@@ -228,24 +227,24 @@ for ( irank in ranks ) {
     gc(verbose= FALSE)
   }
 
-  tb_ganancias_local[ , gan_sum := gan_sum / length(isems)]
+  tb_ganancias_local[ , gan_sum := gan_sum / length(irepes)]
   vganancias <- c( vganancias, tb_ganancias_local[ , max( gan_sum )] )
 
   graficar_ganancias( 
       tb_ganancias_local,
       irank,
       ibayesiana= tb_predicciones[ rank==irank, min( iteracion_bayesiana )],
-      qsemillas= length(isems) )
+      qsemillas= length(irepes) )
 
   # MLFlow
 
-  semillas_qty <- length(isems)
+  semillas_qty <- length(irepes)
   for (icorte in cortes)
   {
      ganancia_media <- tb_ganancias_local[ envios == icorte, gan_sum ]
      linea <- list()
      linea$rank <- irank
-     linea$iteracion_bayesiana <- tb_predicciones[ rank==irank & isem==vsem, min(iteracion_bayesiana) ]
+     linea$iteracion_bayesiana <- tb_predicciones[ rank==irank & repeticion==vrepe, min(iteracion_bayesiana) ]
      linea$qsemillas <- semillas_qty
      linea$semilla <- -1
      linea$corte <- icorte
@@ -285,4 +284,4 @@ GrabarOutput()
 #  archivos tiene a los files que debo verificar existen para no abortar
 
 action_finalizar( archivos = c("tb_ganancias.txt")) 
-cat( "ETAPA  z2601_KA_evaluate_kaggle.r  END\n")
+cat( "ETAPA  z2602_KA_evaluate_kaggle_semillerio.r  END\n")
