@@ -182,3 +182,5 @@ project/target
 .worksheet
 
 .vscode/settings.json
+eval \"$(ssh-agent -s)\"
+eval \"$(ssh-agent -s)\".pub
