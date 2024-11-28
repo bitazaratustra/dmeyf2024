@@ -441,7 +441,7 @@ SC_scoring_semillerio <- function( pinputexps )
 {
   if( -1 == (param_local <- exp_init())$resultado ) return( 0 )# linea fija
 
-  param_local$meta$script <- "/src/wf-etapas/z2402_SC_scoring_lightgbm_SEMI.r"
+  param_local$meta$script <- "/src/wf-etapas/z2603_KA_evaluate_kaggle_SEMI.r"
 
   param_local$semilla <- NULL  # no usa semilla, es deterministico
 
@@ -481,7 +481,7 @@ wf_SEMI_ago_orden227 <- function( pnombrewf )
   param_local <- exp_wf_init( pnombrewf ) # linea fija
 
   # Etapa especificacion dataset de la Segunda Competencia Kaggle
-  DT_incorporar_dataset( "~/buckets/b1/datasets/competencia_02.csv.gz")
+  DT_incorporar_dataset( "~/buckets/b1/datasets/competencia_03_crudo.csv.gz")
 
   CA_catastrophe_base( metodo="MachineLearning")
   FEintra_manual_base()
